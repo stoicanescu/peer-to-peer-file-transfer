@@ -8,6 +8,7 @@
 #include <ifaddrs.h>
 #include <stdlib.h>
 #include <pthread.h>
+#include <strings.h>
 
 char addressBuffer[INET_ADDRSTRLEN];
 int server_port;
