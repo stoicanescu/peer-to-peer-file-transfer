@@ -11,7 +11,7 @@
 #include <strings.h>
 
 #define MAXRECVSTRING 30
-#define BROADCAST_PORT 25556
+#define BROADCAST_PORT 25557
 
 char addressBuffer[INET_ADDRSTRLEN];
 int server_port;
@@ -28,6 +28,7 @@ typedef struct peer {
 } peer;
 
 peer *peers;
+//pthread_mutex_t lock = //pthread_mutex_INITIALIZER;
 
 char* get_IP() {
     struct ifaddrs * ifAddrStruct=NULL;
@@ -121,21 +122,33 @@ int init_socket() {
     return sockfd;
 }
 
-int exists_ip(char *ip) {
-    peer *head = peers;
-    while(head != NULL) {
-        if(strcmp(head->peer_ip, ip))
+int exists_ip(char ip[16]) {
+    //pthread_mutex_lock(&lock);
+    peer *current_peer = peers;
+    while(current_peer != NULL) {
+        if(strcmp(current_peer->peer_ip, ip) == 0) { 
             return 1;
-        head = head->next;
+        }
+        current_peer = current_peer->next;
     }
+    //pthread_mutex_unlock(&lock);
     return 0;
 }
 
 void push(peer *found_peer) {
-    peer *head = peers;
-    while(head->next != NULL)
-        head = head->next;
-    head->next = found_peer;
+    //pthread_mutex_lock(&lock);
+    peer *current_peer = peers;
+    if(peers == NULL) {
+        peers = found_peer;   
+    }
+    else {
+        while(current_peer->next != NULL) {
+            current_peer = current_peer->next;
+        }
+        current_peer->next = found_peer;
+
+    }
+    //pthread_mutex_unlock(&lock);
 }
 
 void *listen_for_peers() {
@@ -167,21 +180,15 @@ void *listen_for_peers() {
             printf("recvfrom() failed");
         recvString[recvStringLen] = '\0';
 
-
         peer *found_peer = NULL;
         found_peer = (struct peer*)malloc(sizeof(struct peer));
         found_peer->next = NULL;
         sscanf(recvString, "%s\n%d", found_peer->peer_ip, &found_peer->peer_port);
-        printf("Received_ip: %s\n", found_peer->peer_ip);    /* Print the received string */
-        printf("Received_port: %d\n\n\n", found_peer->peer_port);    /* Print the received string */
-        // printf("aici");
-        // if(!exists_ip(found_peer->peer_ip))
-        //     printf("ip exists");
-        //     // push(found_peer);
-        // else
-        // {
-        //     printf("ip exists");
-        // }
+        // printf("Received_ip: %s\n", found_peer->peer_ip);    /* Print the received string */
+        // printf("Received_port: %d\n\n\n", found_peer->peer_port);    /* Print the received string */
+        if(!exists_ip(found_peer->peer_ip)) {
+            push(found_peer);
+        }
         
         sleep(1);
     }
@@ -189,11 +196,17 @@ void *listen_for_peers() {
 }
 
 void *show_list() {
-    peer *head = peers;
-    while(head != NULL) {
-        printf("%s\n", head->peer_ip);
-        printf("%d\n\n", head->peer_port);
-        head = head->next;
+    while(1) {
+        //pthread_mutex_lock(&lock);
+        printf("show:\n");
+        peer *current_peer = peers;
+        while(current_peer != NULL) {
+            printf("%s\n", current_peer->peer_ip);
+            printf("%d\n\n", current_peer->peer_port);
+            current_peer = current_peer->next;
+        }
+        //pthread_mutex_unlock(&lock);
+        sleep(1);
     }
 }
 
