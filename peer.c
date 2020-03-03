@@ -10,12 +10,21 @@
 #include <pthread.h>
 #include <strings.h>
 
+#define MAXRECVSTRING 30
+#define BROADCAST_PORT 25555
+
 char addressBuffer[INET_ADDRSTRLEN];
 int server_port;
 
 struct broadcast_arguments {
     char* server_ip;
     int server_port;
+};
+
+struct peer {
+    char* peer_ip;
+    int peer_port;
+    struct peer *next;
 };
 
 char* get_IP() {
@@ -70,7 +79,7 @@ void *broadcast(void *arguments) {
         memset(&broadcastAddr, 0, sizeof broadcastAddr);
         broadcastAddr.sin_family = AF_INET;
         inet_pton(AF_INET, "255.255.255.255", &broadcastAddr.sin_addr); // Set the broadcast IP address
-        broadcastAddr.sin_port = htons(25555); // Set port 25555
+        broadcastAddr.sin_port = htons(BROADCAST_PORT); // Set port 25555
 
         // Prepare message
         char message[25];
@@ -110,6 +119,39 @@ int init_socket() {
     return sockfd;
 }
 
+void *listen_for_peers() {
+    int sock;                         /* Socket */
+    struct sockaddr_in broadcastAddr; /* Broadcast Address */
+    unsigned short broadcastPort;     /* Port */
+    char recvString[MAXRECVSTRING+1]; /* Buffer for received string */
+    int recvStringLen;                /* Length of received string */
+
+    broadcastPort = BROADCAST_PORT;   /* First arg: broadcast port */
+
+    /* Create a best-effort datagram socket using UDP */
+    if ((sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
+        printf("socket() failed");
+
+    /* Construct bind structure */
+    memset(&broadcastAddr, 0, sizeof(broadcastAddr));   /* Zero out structure */
+    broadcastAddr.sin_family = AF_INET;                 /* Internet address family */
+    inet_pton(AF_INET, "255.255.255.255", &broadcastAddr.sin_addr);
+    broadcastAddr.sin_port = htons(broadcastPort);      /* Broadcast port */
+    while(1) {
+        /* Bind to the broadcast port */
+        if (bind(sock, (struct sockaddr *) &broadcastAddr, sizeof(broadcastAddr)) < 0)
+            printf("bind() failed ");
+
+        /* Receive a single datagram from the server */
+        if ((recvStringLen = recvfrom(sock, recvString, MAXRECVSTRING, 0, NULL, 0)) < 0)
+            printf("recvfrom() failed");
+        recvString[recvStringLen] = '\0';
+        printf("Received: %s\n", recvString);    /* Print the received string */
+        sleep(2);
+    }
+    close(sock);
+}
+
 int main() {
     int sockfd;
     
@@ -117,14 +159,16 @@ int main() {
     struct sockaddr_in sin;
     socklen_t len = sizeof(sin);
     if (getsockname(sockfd, (struct sockaddr *)&sin, &len) != -1)
-        server_port = ntohs(sin.sin_port);
+        server_port = ntohs(sin.sin_port); // Get port of current peer
 
-    pthread_t thread_broadcast;
+    pthread_t thread_broadcast, thread_peers_listener;
     struct broadcast_arguments args_server;
     args_server.server_ip = get_IP();
     args_server.server_port = server_port;
 
     pthread_create(&thread_broadcast, NULL, &broadcast, (void *)&args_server);
+    pthread_create(&thread_peers_listener, NULL, &listen_for_peers, NULL);
     pthread_join(thread_broadcast, NULL);
-    // broadcast(get_IP(), server_port);
+    pthread_join(thread_peers_listener, NULL);
+
 }
