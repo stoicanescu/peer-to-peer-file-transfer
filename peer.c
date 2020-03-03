@@ -6,9 +6,16 @@
 #include <string.h>
 #include <netdb.h>
 #include <ifaddrs.h>
-
+#include <stdlib.h>
+#include <pthread.h>
 
 char addressBuffer[INET_ADDRSTRLEN];
+int server_port;
+
+struct broadcast_arguments {
+    char* server_ip;
+    int server_port;
+};
 
 char* get_IP() {
     struct ifaddrs * ifAddrStruct=NULL;
@@ -31,11 +38,15 @@ char* get_IP() {
     return addressBuffer;
 }
 
-void broadcast() {
+void *broadcast(void *arguments) {
+    struct broadcast_arguments *args = arguments;
+    char* server_ip = args->server_ip;
+    int server_port = args->server_port;
+
     int sd = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (sd <= 0) {
         printf("Error: Could not open socket");
-        return;
+        return 0;
     }
     
     // Set socket options
@@ -45,7 +56,7 @@ void broadcast() {
     if (ret) {
         printf("Error: Could not open set socket to broadcast mode");
         close(sd);
-        return;
+        return 0;
     }
     
     // Since we don't call bind() here, the system decides on the port for us, which is what we want.    
@@ -58,21 +69,30 @@ void broadcast() {
     inet_pton(AF_INET, "255.255.255.255", &broadcastAddr.sin_addr); // Set the broadcast IP address
     broadcastAddr.sin_port = htons(25555); // Set port 25555
 
-    char *message = get_IP();
-    ret = sendto(sd, message, strlen(message), 0, (struct sockaddr*)&broadcastAddr, sizeof broadcastAddr);
-    if (ret<0) {
-        // NSLog(@"Error: Could not open send broadcast");
+    while(1) {
+        // Prepare message
+        char message[25];
+        char port[6];
+        sprintf(port, "%d", server_port);
+        strcpy(message, server_ip);
+        strcat(message, "\n");
+        strcat(message, port);
+
+        ret = sendto(sd, message, strlen(message), 0, (struct sockaddr*)&broadcastAddr, sizeof broadcastAddr);
+        if (ret<0) {
+            printf("Error: Could not open send broadcast");
+            close(sd);
+            return 0;        
+        }
+        // Get responses here using recvfrom if you want...
         close(sd);
-        return;        
+        sleep(2);
     }
-    // Get responses here using recvfrom if you want...
-    close(sd);
 }
 
 int init_socket() {
     int sockfd;                        /* Socket */
     struct sockaddr_in server_address; /* IP Address */
-    unsigned short port;               /* Port */
 
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
 
@@ -93,8 +113,15 @@ int main() {
     
     sockfd = init_socket();
     struct sockaddr_in sin;
-    printf("%d\n", sockfd);
     socklen_t len = sizeof(sin);
     if (getsockname(sockfd, (struct sockaddr *)&sin, &len) != -1)
-        printf("port number %d\n", ntohs(sin.sin_port));
+        server_port = ntohs(sin.sin_port);
+
+    pthread_t thread_broadcast;
+    struct broadcast_arguments args_server;
+    args_server.server_ip = get_IP();
+    args_server.server_port = server_port;
+
+    pthread_create(&thread_broadcast, NULL, &broadcast, (void *)&args_server);
+    // broadcast(get_IP(), server_port);
 }
