@@ -11,7 +11,7 @@
 #include <strings.h>
 
 #define MAXRECVSTRING 30
-#define BROADCAST_PORT 25555
+#define BROADCAST_PORT 25556
 
 char addressBuffer[INET_ADDRSTRLEN];
 int server_port;
@@ -21,11 +21,13 @@ struct broadcast_arguments {
     int server_port;
 };
 
-struct peer {
-    char* peer_ip;
+typedef struct peer {
+    char peer_ip[16];
     int peer_port;
     struct peer *next;
-};
+} peer;
+
+peer *peers;
 
 char* get_IP() {
     struct ifaddrs * ifAddrStruct=NULL;
@@ -119,6 +121,23 @@ int init_socket() {
     return sockfd;
 }
 
+int exists_ip(char *ip) {
+    peer *head = peers;
+    while(head != NULL) {
+        if(strcmp(head->peer_ip, ip))
+            return 1;
+        head = head->next;
+    }
+    return 0;
+}
+
+void push(peer *found_peer) {
+    peer *head = peers;
+    while(head->next != NULL)
+        head = head->next;
+    head->next = found_peer;
+}
+
 void *listen_for_peers() {
     int sock;                         /* Socket */
     struct sockaddr_in broadcastAddr; /* Broadcast Address */
@@ -137,19 +156,45 @@ void *listen_for_peers() {
     broadcastAddr.sin_family = AF_INET;                 /* Internet address family */
     inet_pton(AF_INET, "255.255.255.255", &broadcastAddr.sin_addr);
     broadcastAddr.sin_port = htons(broadcastPort);      /* Broadcast port */
-    while(1) {
-        /* Bind to the broadcast port */
-        if (bind(sock, (struct sockaddr *) &broadcastAddr, sizeof(broadcastAddr)) < 0)
-            printf("bind() failed ");
+    
+    /* Bind to the broadcast port */
+    if (bind(sock, (struct sockaddr *) &broadcastAddr, sizeof(broadcastAddr)) < 0)
+        printf("bind() failed ");
 
+    while(1) {
         /* Receive a single datagram from the server */
         if ((recvStringLen = recvfrom(sock, recvString, MAXRECVSTRING, 0, NULL, 0)) < 0)
             printf("recvfrom() failed");
         recvString[recvStringLen] = '\0';
-        printf("Received: %s\n", recvString);    /* Print the received string */
-        sleep(2);
+
+
+        peer *found_peer = NULL;
+        found_peer = (struct peer*)malloc(sizeof(struct peer));
+        found_peer->next = NULL;
+        sscanf(recvString, "%s\n%d", found_peer->peer_ip, &found_peer->peer_port);
+        printf("Received_ip: %s\n", found_peer->peer_ip);    /* Print the received string */
+        printf("Received_port: %d\n\n\n", found_peer->peer_port);    /* Print the received string */
+        // printf("aici");
+        // if(!exists_ip(found_peer->peer_ip))
+        //     printf("ip exists");
+        //     // push(found_peer);
+        // else
+        // {
+        //     printf("ip exists");
+        // }
+        
+        sleep(1);
     }
     close(sock);
+}
+
+void *show_list() {
+    peer *head = peers;
+    while(head != NULL) {
+        printf("%s\n", head->peer_ip);
+        printf("%d\n\n", head->peer_port);
+        head = head->next;
+    }
 }
 
 int main() {
@@ -161,14 +206,17 @@ int main() {
     if (getsockname(sockfd, (struct sockaddr *)&sin, &len) != -1)
         server_port = ntohs(sin.sin_port); // Get port of current peer
 
-    pthread_t thread_broadcast, thread_peers_listener;
+    pthread_t thread_broadcast, thread_peers_listener, thread_show_list;
     struct broadcast_arguments args_server;
     args_server.server_ip = get_IP();
     args_server.server_port = server_port;
 
     pthread_create(&thread_broadcast, NULL, &broadcast, (void *)&args_server);
     pthread_create(&thread_peers_listener, NULL, &listen_for_peers, NULL);
+    pthread_create(&thread_show_list, NULL, &show_list, NULL);
+    
     pthread_join(thread_broadcast, NULL);
     pthread_join(thread_peers_listener, NULL);
-
+    pthread_join(thread_show_list, NULL);
+    
 }
