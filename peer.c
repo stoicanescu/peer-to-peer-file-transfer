@@ -43,33 +43,34 @@ void *broadcast(void *arguments) {
     char* server_ip = args->server_ip;
     int server_port = args->server_port;
 
-    int sd = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
-    if (sd <= 0) {
-        printf("Error: Could not open socket");
-        return 0;
-    }
-    
-    // Set socket options
-    // Enable broadcast
-    int broadcastEnable = 1;
-    int ret = setsockopt(sd, SOL_SOCKET, SO_BROADCAST, &broadcastEnable, sizeof(broadcastEnable));
-    if (ret) {
-        printf("Error: Could not open set socket to broadcast mode");
-        close(sd);
-        return 0;
-    }
-    
-    // Since we don't call bind() here, the system decides on the port for us, which is what we want.    
-    
-    // Configure the port and ip we want to send to
-    struct sockaddr_in broadcastAddr; // Make an endpoint
-
-    memset(&broadcastAddr, 0, sizeof broadcastAddr);
-    broadcastAddr.sin_family = AF_INET;
-    inet_pton(AF_INET, "255.255.255.255", &broadcastAddr.sin_addr); // Set the broadcast IP address
-    broadcastAddr.sin_port = htons(25555); // Set port 25555
 
     while(1) {
+        int sd = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
+        if (sd <= 0) {
+            printf("Error: Could not open socket");
+            return 0;
+        }
+        
+        // Set socket options
+        // Enable broadcast
+        int broadcastEnable = 1;
+        int ret = setsockopt(sd, SOL_SOCKET, SO_BROADCAST, &broadcastEnable, sizeof(broadcastEnable));
+        if (ret) {
+            printf("Error: Could not open set socket to broadcast mode");
+            close(sd);
+            return 0;
+        }
+        
+        // Since we don't call bind() here, the system decides on the port for us, which is what we want.    
+        
+        // Configure the port and ip we want to send to
+        struct sockaddr_in broadcastAddr; // Make an endpoint
+
+        memset(&broadcastAddr, 0, sizeof broadcastAddr);
+        broadcastAddr.sin_family = AF_INET;
+        inet_pton(AF_INET, "255.255.255.255", &broadcastAddr.sin_addr); // Set the broadcast IP address
+        broadcastAddr.sin_port = htons(25555); // Set port 25555
+
         // Prepare message
         char message[25];
         char port[6];
@@ -123,5 +124,6 @@ int main() {
     args_server.server_port = server_port;
 
     pthread_create(&thread_broadcast, NULL, &broadcast, (void *)&args_server);
+    pthread_join(thread_broadcast, NULL);
     // broadcast(get_IP(), server_port);
 }
