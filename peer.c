@@ -21,6 +21,10 @@ struct broadcast_arguments {
     int server_port;
 };
 
+struct socket_argument {
+    int sockfd_arg;
+};
+
 typedef struct peer {
     char peer_ip[16];
     int peer_port;
@@ -210,14 +214,89 @@ void *show_list() {
     }
 }
 
+void print_list(peer *peer_head) {
+    peer *current_peer = peer_head;
+    while(current_peer != NULL) {
+        printf("\t%s\n", current_peer->peer_ip);
+        printf("\t%d\n\n", current_peer->peer_port);
+        current_peer = current_peer->next;
+    }
+}
+
+void interrogate_peers(char *file_name, peer *matched_peers) {
+    peer *current_peer = matched_peers;
+    while(current_peer != NULL) {
+        int socket_desc;
+        struct sockaddr_in server;
+        char *message;
+        char response; //If 'y' -> current_peer has the file
+                       //If 'n' -> current_peer does not have the file
+
+        //Create socket
+        socket_desc = socket(AF_INET , SOCK_STREAM , 0);
+        if (socket_desc == -1)
+        {
+            printf("Could not create socket");
+        }
+            
+        server.sin_addr.s_addr = inet_addr(current_peer->peer_ip);
+        server.sin_family = AF_INET;
+        server.sin_port = htons(current_peer->peer_port);
+
+        //Connect to remote server
+        if (connect(socket_desc , (struct sockaddr *)&server , sizeof(server)) < 0)
+        {
+            puts("connect error");
+            return;
+        }
+        
+        int n;
+        n = write(socket_desc,file_name,strlen(file_name));
+        if (n < 0) 
+            perror("ERROR writing to socket");
+        n = read(socket_desc, &response, 1);
+        if (n < 0) 
+            perror("ERROR reading from socket");
+        current_peer = current_peer->next;
+    }
+}
+
+void *listen_for_peer_question(void *sockfd_arg) {
+    struct socket_argument *sock_arg = sockfd_arg;
+    int sockfd = sock_arg->sockfd_arg;
+    while(1) {
+        int newsockfd, clilen;
+        struct sockaddr_in cli_addr;
+        int n;
+        char buffer[256];
+
+        listen(sockfd,5);
+        clilen = sizeof(cli_addr);
+        newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);
+        if (newsockfd < 0) 
+            perror("ERROR on accept");
+        bzero(buffer,256);
+        n = read(newsockfd,buffer,255);
+        if (n < 0) 
+            perror("ERROR reading from socket");
+        printf("File name he is looking for: %s\n",buffer);
+        n = write(newsockfd,"I got your message",18);
+        if (n < 0) 
+            perror("ERROR writing to socket");
+    }
+}
+
 void *menu() {
     while(1) {
         char file_name[30];
         char *p;
+        peer *matched_peers;
         memset(file_name, 0, sizeof(file_name));
         printf("Hello! How can we help you? What file are you looking for?\n");
         p = fgets(file_name, sizeof(file_name), stdin);
-        printf("%s", file_name);
+        // printf("%s", file_name);
+        interrogate_peers(file_name, matched_peers);
+        print_list(matched_peers);
     }
 }
 
@@ -230,19 +309,25 @@ int main() {
     if (getsockname(sockfd, (struct sockaddr *)&sin, &len) != -1)
         server_port = ntohs(sin.sin_port); // Get port of current peer
 
-    pthread_t thread_broadcast, thread_peers_listener, thread_show_list, thread_menu;
+    pthread_t thread_broadcast, thread_peers_listener, thread_show_list, thread_menu, thread_file_listener;
     struct broadcast_arguments args_server;
     args_server.server_ip = get_IP();
     args_server.server_port = server_port;
+
+    struct socket_argument sockfd_arg;
+    sockfd_arg.sockfd_arg = sockfd;
 
     pthread_create(&thread_broadcast, NULL, &broadcast, (void *)&args_server);
     pthread_create(&thread_peers_listener, NULL, &listen_for_peers, NULL);
     // pthread_create(&thread_show_list, NULL, &show_list, NULL);
     pthread_create(&thread_menu, NULL, &menu, NULL);
+    pthread_create(&thread_file_listener, NULL, &listen_for_peer_question, (void *)&sockfd);
+    
 
     pthread_join(thread_broadcast, NULL);
     pthread_join(thread_peers_listener, NULL);
     // pthread_join(thread_show_list, NULL);
     pthread_join(thread_menu, NULL);
+    pthread_join(thread_file_listener, NULL);
     
 }
