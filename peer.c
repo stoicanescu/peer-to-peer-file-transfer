@@ -28,7 +28,7 @@ typedef struct peer {
 } peer;
 
 peer *peers;
-//pthread_mutex_t lock = //pthread_mutex_INITIALIZER;
+pthread_mutex_t lock;
 
 char* get_IP() {
     struct ifaddrs * ifAddrStruct=NULL;
@@ -136,7 +136,7 @@ int exists_ip(char ip[16]) {
 }
 
 void push(peer *found_peer) {
-    //pthread_mutex_lock(&lock);
+    pthread_mutex_lock(&lock);
     peer *current_peer = peers;
     if(peers == NULL) {
         peers = found_peer;   
@@ -148,7 +148,7 @@ void push(peer *found_peer) {
         current_peer->next = found_peer;
 
     }
-    //pthread_mutex_unlock(&lock);
+    pthread_mutex_unlock(&lock);
 }
 
 void *listen_for_peers() {
@@ -201,12 +201,23 @@ void *show_list() {
         printf("show:\n");
         peer *current_peer = peers;
         while(current_peer != NULL) {
-            printf("%s\n", current_peer->peer_ip);
-            printf("%d\n\n", current_peer->peer_port);
+            printf("\t%s\n", current_peer->peer_ip);
+            printf("\t%d\n\n", current_peer->peer_port);
             current_peer = current_peer->next;
         }
         //pthread_mutex_unlock(&lock);
         sleep(1);
+    }
+}
+
+void *menu() {
+    while(1) {
+        char file_name[30];
+        char *p;
+        memset(file_name, 0, sizeof(file_name));
+        printf("Hello! How can we help you? What file are you looking for?\n");
+        p = fgets(file_name, sizeof(file_name), stdin);
+        printf("%s", file_name);
     }
 }
 
@@ -219,17 +230,19 @@ int main() {
     if (getsockname(sockfd, (struct sockaddr *)&sin, &len) != -1)
         server_port = ntohs(sin.sin_port); // Get port of current peer
 
-    pthread_t thread_broadcast, thread_peers_listener, thread_show_list;
+    pthread_t thread_broadcast, thread_peers_listener, thread_show_list, thread_menu;
     struct broadcast_arguments args_server;
     args_server.server_ip = get_IP();
     args_server.server_port = server_port;
 
     pthread_create(&thread_broadcast, NULL, &broadcast, (void *)&args_server);
     pthread_create(&thread_peers_listener, NULL, &listen_for_peers, NULL);
-    pthread_create(&thread_show_list, NULL, &show_list, NULL);
-    
+    // pthread_create(&thread_show_list, NULL, &show_list, NULL);
+    pthread_create(&thread_menu, NULL, &menu, NULL);
+
     pthread_join(thread_broadcast, NULL);
     pthread_join(thread_peers_listener, NULL);
-    pthread_join(thread_show_list, NULL);
+    // pthread_join(thread_show_list, NULL);
+    pthread_join(thread_menu, NULL);
     
 }
