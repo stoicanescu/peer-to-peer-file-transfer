@@ -9,6 +9,8 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include <strings.h>
+#include <dirent.h>
+#include <sys/types.h>
 
 #define MAXRECVSTRING 30
 #define BROADCAST_PORT 25557
@@ -155,6 +157,22 @@ void push(peer *new_peer, peer **peer_list) {
     pthread_mutex_unlock(&lock);
 }
 
+int peer_has_file(char *file_name) {
+    DIR *dir;
+    struct dirent *de;
+    int file_found = 0;
+
+    dir = opendir("./files");
+    if(dir == NULL){
+        printf("DID NOT OPEN DIR!!!!!");
+    }
+    while ((de = readdir(dir)) != NULL) 
+        if(strcmp(file_name, de->d_name) == 0)
+            file_found = 1;
+    
+    return file_found;
+}
+
 void *listen_for_peers() {
     int sock;                         /* Socket */
     struct sockaddr_in broadcastAddr; /* Broadcast Address */
@@ -188,8 +206,7 @@ void *listen_for_peers() {
         found_peer = (struct peer*)malloc(sizeof(struct peer));
         found_peer->next = NULL;
         sscanf(recvString, "%s\n%d", found_peer->peer_ip, &found_peer->peer_port);
-        // printf("Received_ip: %s\n", found_peer->peer_ip);    /* Print the received string */
-        // printf("Received_port: %d\n\n\n", found_peer->peer_port);    /* Print the received string */
+
         if(!exists_ip(found_peer->peer_ip) && strcmp(found_peer->peer_ip, get_IP()) != 0) { // Do not add 'this' peer to list
             push(found_peer, &peers);
         }
@@ -223,9 +240,8 @@ void print_list(peer *peer_head) {
     }
 }
 
-void interrogate_peers(char *file_name, peer *matched_peers) {
+void interrogate_peers(char *file_name, peer **matched_peers) {
     peer *current_peer = peers;
-    peer *head_matched_peers = matched_peers;
     while(current_peer != NULL) {
         int socket_desc;
         struct sockaddr_in server;
@@ -258,11 +274,15 @@ void interrogate_peers(char *file_name, peer *matched_peers) {
         n = read(socket_desc, &response, 1);
         if (n < 0) 
             perror("ERROR reading from socket");
-        if(response == 'y') {
+        if(response == 'y') { // y (yes) -> a peer has the file I am looking for
             peer *matched_peer = NULL; 
             matched_peer = (struct peer*)malloc(sizeof(struct peer));
             matched_peer->next = NULL;
+            strcpy(matched_peer->peer_ip,  current_peer->peer_ip);
+            matched_peer->peer_port = current_peer->peer_port;
+            push(matched_peer, matched_peers);
         }
+        close(socket_desc);
         current_peer = current_peer->next;
     }
 }
@@ -274,19 +294,22 @@ void *listen_for_peer_question(void *sockfd_arg) {
         int newsockfd, clilen;
         struct sockaddr_in cli_addr;
         int n;
-        char buffer[256];
+        char file_name[50];
 
         listen(sockfd,5);
         clilen = sizeof(cli_addr);
         newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);
         if (newsockfd < 0) 
             perror("ERROR on accept");
-        bzero(buffer,256);
-        n = read(newsockfd,buffer,255);
+        bzero(file_name,50);
+        n = read(newsockfd,file_name,50);
         if (n < 0) 
             perror("ERROR reading from socket");
-        printf("File name he is looking for: %s\n",buffer);
-        n = write(newsockfd,"y",1);
+        printf("File name he is looking for: %s\n", file_name);
+        if(peer_has_file(file_name))
+            n = write(newsockfd,"y",1);
+        else
+            n = write(newsockfd,"n",1);
         if (n < 0) 
             perror("ERROR writing to socket");
     }
@@ -301,7 +324,7 @@ void *menu() {
         printf("Hello! How can we help you? What file are you looking for?\n");
         p = fgets(file_name, sizeof(file_name), stdin);
         // printf("%s", file_name);
-        interrogate_peers(file_name, matched_peers);
+        interrogate_peers(file_name, &matched_peers);
         print_list(matched_peers);
     }
 }
