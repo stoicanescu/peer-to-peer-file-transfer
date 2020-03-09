@@ -190,7 +190,7 @@ void *listen_for_peers() {
         sscanf(recvString, "%s\n%d", found_peer->peer_ip, &found_peer->peer_port);
         // printf("Received_ip: %s\n", found_peer->peer_ip);    /* Print the received string */
         // printf("Received_port: %d\n\n\n", found_peer->peer_port);    /* Print the received string */
-        if(!exists_ip(found_peer->peer_ip)) {
+        if(!exists_ip(found_peer->peer_ip) && strcmp(found_peer->peer_ip, get_IP()) != 0) { // Do not add 'this' peer to list
             push(found_peer);
         }
         
@@ -224,7 +224,8 @@ void print_list(peer *peer_head) {
 }
 
 void interrogate_peers(char *file_name, peer *matched_peers) {
-    peer *current_peer = matched_peers;
+    peer *current_peer = peers;
+    peer *head_matched_peers = matched_peers;
     while(current_peer != NULL) {
         int socket_desc;
         struct sockaddr_in server;
@@ -257,6 +258,11 @@ void interrogate_peers(char *file_name, peer *matched_peers) {
         n = read(socket_desc, &response, 1);
         if (n < 0) 
             perror("ERROR reading from socket");
+        if(response == 'y') {
+            peer *matched_peer = NULL; 
+            matched_peer = (struct peer*)malloc(sizeof(struct peer));
+            matched_peer->next = NULL;
+        }
         current_peer = current_peer->next;
     }
 }
@@ -280,7 +286,7 @@ void *listen_for_peer_question(void *sockfd_arg) {
         if (n < 0) 
             perror("ERROR reading from socket");
         printf("File name he is looking for: %s\n",buffer);
-        n = write(newsockfd,"I got your message",18);
+        n = write(newsockfd,"y",1);
         if (n < 0) 
             perror("ERROR writing to socket");
     }
