@@ -139,17 +139,17 @@ int exists_ip(char ip[16]) {
     return 0;
 }
 
-void push(peer *found_peer) {
+void push(peer *new_peer, peer **peer_list) {
     pthread_mutex_lock(&lock);
-    peer *current_peer = peers;
-    if(peers == NULL) {
-        peers = found_peer;   
+    peer *current_peer = *peer_list;
+    if(*peer_list == NULL) {
+        *peer_list = new_peer;   
     }
     else {
         while(current_peer->next != NULL) {
             current_peer = current_peer->next;
         }
-        current_peer->next = found_peer;
+        current_peer->next = new_peer;
 
     }
     pthread_mutex_unlock(&lock);
@@ -191,7 +191,7 @@ void *listen_for_peers() {
         // printf("Received_ip: %s\n", found_peer->peer_ip);    /* Print the received string */
         // printf("Received_port: %d\n\n\n", found_peer->peer_port);    /* Print the received string */
         if(!exists_ip(found_peer->peer_ip) && strcmp(found_peer->peer_ip, get_IP()) != 0) { // Do not add 'this' peer to list
-            push(found_peer);
+            push(found_peer, &peers);
         }
         
         sleep(1);
