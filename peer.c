@@ -277,7 +277,6 @@ void interrogate_peers(char *file_name, peer **matched_peers) {
             perror("ERROR reading from socket");
         if(response == 'y') { // y (yes) -> a peer has the file I am looking for
             peer *matched_peer = NULL; 
-            printf("are\n");
             matched_peer = (struct peer*)malloc(sizeof(struct peer));
             matched_peer->next = NULL;
             strcpy(matched_peer->peer_ip,  current_peer->peer_ip);
@@ -308,13 +307,17 @@ void *listen_for_peer_question(void *sockfd_arg) {
         if (n < 0) 
             perror("ERROR reading from socket");
 
-        char file_name[n]; //aici problema cred
+        char *file_name; 
+        file_name = (char *)malloc(n*sizeof(char));
         strcpy(file_name, buffer);
-        printf("File name he is looking for: %s\n", file_name);
-        if(peer_has_file(file_name))
+        file_name[n-1] = '\0';
+        printf("File name someone is looking for: %s\n", file_name);
+        if(peer_has_file(file_name)) {
             n = write(newsockfd,"y",1);
-        else
+        }
+        else {
             n = write(newsockfd,"n",1);
+        }
         if (n < 0) 
             perror("ERROR writing to socket");
     }
@@ -330,7 +333,7 @@ void *menu() {
         p = fgets(file_name, sizeof(file_name), stdin);
         // printf("%s", file_name);
         interrogate_peers(file_name, &matched_peers);
-        // print_list(matched_peers);
+        print_list(matched_peers);
     }
 }
 
