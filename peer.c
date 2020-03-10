@@ -13,7 +13,7 @@
 #include <sys/types.h>
 
 #define MAXRECVSTRING 30
-#define BROADCAST_PORT 25557
+#define BROADCAST_PORT 55555
 
 char addressBuffer[INET_ADDRSTRLEN]; // Here it is stored the ip of current peer
 int server_port;                     // Here it is stored the port of current peer
@@ -241,6 +241,34 @@ void print_list(peer *peer_head) {
     }
 }
 
+void print_list_numbered(peer *peer_head){
+    peer *current_peer = peer_head;
+    int number = 0;
+    while(current_peer != NULL) {
+        printf("\t%d\t%s\n", ++number, current_peer->peer_ip);
+        current_peer = current_peer->next;
+    }
+} 
+int get_list_size(peer *peer_head){
+    peer *current_peer = peer_head;
+    int number = 0;
+    while(current_peer != NULL) {
+        number++;
+        current_peer = current_peer->next;
+    }
+    return number;
+}
+
+peer get_peer_el_from_list(peer *peer_head, int el_nr){
+    peer *current_peer = peer_head;
+    int number = 1;
+    while(number != el_nr) {
+        number++;
+        current_peer = current_peer->next;
+    }
+    return *current_peer;
+}
+
 void interrogate_peers(char *file_name, peer **matched_peers) {
     peer *current_peer = peers;
     while(current_peer != NULL) {
@@ -325,12 +353,24 @@ void *menu() {
         char file_name[30];
         char *p;
         peer *matched_peers;
+        int selected_number = 0;
         memset(file_name, 0, sizeof(file_name));
         printf("Hello! How can we help you? What file are you looking for?\n");
         p = fgets(file_name, sizeof(file_name), stdin);
         // printf("%s", file_name);
         interrogate_peers(file_name, &matched_peers);
         // print_list(matched_peers);
+        int list_size = get_list_size(matched_peers);
+        
+
+        do{
+        printf("Where do you want to take it from? Type the coresponding number to begin downloading\n");
+        print_list_numbered(matched_peers);
+        int n  = fscanf(stdin,"%d", &selected_number);
+        }while(selected_number < 1 || selected_number > list_size);
+        printf("PASSED check!!!!\n");
+        peer info_peer = get_peer_el_from_list(matched_peers, selected_number);
+
     }
 }
 
