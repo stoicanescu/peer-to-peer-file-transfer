@@ -15,15 +15,15 @@
 #define MAXRECVSTRING 30
 #define BROADCAST_PORT 25557
 
-char addressBuffer[INET_ADDRSTRLEN];
-int server_port;
+char addressBuffer[INET_ADDRSTRLEN]; // Here it is stored the ip of current peer
+int server_port;                     // Here it is stored the port of current peer
 
-struct broadcast_arguments {
-    char* server_ip;
+struct broadcast_arguments { // For argument to a function called by a thread
+    char* server_ip;         // Can't do other way
     int server_port;
 };
 
-struct socket_argument {
+struct socket_argument { // Same as above
     int sockfd_arg;
 };
 
@@ -33,10 +33,12 @@ typedef struct peer {
     struct peer *next;
 } peer;
 
-peer *peers;
-pthread_mutex_t lock;
+peer *peers; // List of all peers available in the network
+pthread_mutex_t lock; // Used for thread safe -> same resources can be accessed by multiple threads
+                      // If a thread do something with a variable, he will put a lock on it
+                      // When finish -> unlock it
 
-char* get_IP() {
+char* get_IP() { // Get ip of current peer
     struct ifaddrs * ifAddrStruct=NULL;
     struct ifaddrs * ifa=NULL;
     void * tmpAddrPtr=NULL;
@@ -57,7 +59,8 @@ char* get_IP() {
     return addressBuffer;
 }
 
-void *broadcast(void *arguments) {
+void *broadcast(void *arguments) { // Called by a thread every 2 seconds
+                                   // Every peer broadcasts ip and port on broadcast address of network
     struct broadcast_arguments *args = arguments;
     char* server_ip = args->server_ip;
     int server_port = args->server_port;
@@ -87,11 +90,11 @@ void *broadcast(void *arguments) {
 
         memset(&broadcastAddr, 0, sizeof broadcastAddr);
         broadcastAddr.sin_family = AF_INET;
-        inet_pton(AF_INET, "255.255.255.255", &broadcastAddr.sin_addr); // Set the broadcast IP address
+        inet_pton(AF_INET, "255.255.255.255", &broadcastAddr.sin_addr); // Set the broadcast ip address
         broadcastAddr.sin_port = htons(BROADCAST_PORT); // Set port 25555
 
         // Prepare message
-        char message[25];
+        char message[25]; // ex: 192.168.1.10\n34567\0
         char port[6];
         sprintf(port, "%d", server_port);
         strcpy(message, server_ip);
@@ -112,7 +115,7 @@ void *broadcast(void *arguments) {
 
 int init_socket() {
     int sockfd;                        /* Socket */
-    struct sockaddr_in server_address; /* IP Address */
+    struct sockaddr_in server_address; /* Ip Address */
 
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
 
@@ -129,7 +132,6 @@ int init_socket() {
 }
 
 int exists_ip(char ip[16]) {
-    //pthread_mutex_lock(&lock);
     peer *current_peer = peers;
     while(current_peer != NULL) {
         if(strcmp(current_peer->peer_ip, ip) == 0) { 
@@ -137,7 +139,6 @@ int exists_ip(char ip[16]) {
         }
         current_peer = current_peer->next;
     }
-    //pthread_mutex_unlock(&lock);
     return 0;
 }
 
@@ -208,7 +209,7 @@ void *listen_for_peers() {
         sscanf(recvString, "%s\n%d", found_peer->peer_ip, &found_peer->peer_port);
 
         if(!exists_ip(found_peer->peer_ip) && strcmp(found_peer->peer_ip, get_IP()) != 0) { // Do not add 'this' peer to list
-            push(found_peer, &peers);
+            push(found_peer, &peers); // Store it in peers
         }
         
         sleep(1);
@@ -340,7 +341,7 @@ int main() {
     struct sockaddr_in sin;
     socklen_t len = sizeof(sin);
     if (getsockname(sockfd, (struct sockaddr *)&sin, &len) != -1)
-        server_port = ntohs(sin.sin_port); // Get port of current peer
+        server_port = ntohs(sin.sin_port); // Get random port of current peer
 
     pthread_t thread_broadcast, thread_peers_listener, thread_show_list, thread_menu, thread_file_listener;
     struct broadcast_arguments args_server;
