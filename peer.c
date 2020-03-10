@@ -13,7 +13,7 @@
 #include <sys/types.h>
 
 #define MAXRECVSTRING 30
-#define BROADCAST_PORT 25557
+#define BROADCAST_PORT 55555
 
 char addressBuffer[INET_ADDRSTRLEN]; // Here it is stored the ip of current peer
 int server_port;                     // Here it is stored the port of current peer
