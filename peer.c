@@ -248,12 +248,15 @@ int get_list_size(peer *peer_head){
 
 peer get_peer_el_from_list(peer *peer_head, int el_nr){
     peer *current_peer = peer_head;
+    peer chosen_peer;
     int number = 1;
     while(number != el_nr) {
         number++;
         current_peer = current_peer->next;
     }
-    return *current_peer;
+    strcpy(chosen_peer.peer_ip, current_peer->peer_ip);
+    chosen_peer.peer_port = current_peer->peer_port;
+    return chosen_peer;
 }
 
 void interrogate_peers(char *file_name, peer **matched_peers) {
@@ -327,10 +330,10 @@ void *listen_for_peer_question(void *sockfd_arg) {
                         // if 1 - send file
         received_message = (char *)malloc(n*sizeof(char));
         strcpy(received_message, buffer);
-        received_message[n-1] = '\0';
-        what_to_do = received_message[n-2] - '0'; // '0'/'1'
+        received_message[n] = '\0';
+        what_to_do = received_message[n] - '0'; // '0'/'1'
         file_name = received_message;
-        file_name[n-3] = '\0';
+        file_name[n] = '\0';
         printf("what_to_do: %d\n", what_to_do);
         
         if(what_to_do == 0) { // peer only asks if peer has/has not a specific file
@@ -350,7 +353,8 @@ void *listen_for_peer_question(void *sockfd_arg) {
                 
                 write(newsockfd ,"Sending", 8);
 
-                char *file_path = strcat("./files/", file_name); 
+                char file_path[100] = "./files/";
+                strcat(file_path, file_name); 
                 char buff[1024]; 
                 FILE *fp = fopen(file_path, "rb");
                 if(fp == NULL)
@@ -386,7 +390,6 @@ void receive_file(peer server_peer, char *message, char *file_name) {
     if (socket_desc == -1) {
         printf("Could not create socket");
     }
-        
     server.sin_addr.s_addr = inet_addr(server_peer.peer_ip);
     server.sin_family = AF_INET;
     server.sin_port = htons(server_peer.peer_port);
@@ -403,17 +406,24 @@ void receive_file(peer server_peer, char *message, char *file_name) {
     if (n < 0) 
         perror("ERROR writing to socket");
 
-    FILE *fp = fopen(strcat("./files/", file_name), "ab");
-    char buff[1024];
-    while((n = recv(socket_desc, buff, sizeof(buff), 0)) > 0) {
-        if (fwrite(buff, sizeof(char), n, fp) != n)
-        {
-            perror("Write File Error");
-            exit(1);
+    char response[8];
+    n = read(socket_desc, response, sizeof(response));
+    if(strcmp(response, "Sending") == 0) {
+        char file_path[100] = "./files/";
+        strcat(file_path, file_name);
+        FILE *fp = fopen(strcat("./files/", file_name), "ab");
+        char buff[1024];
+        while((n = read(socket_desc, buff, sizeof(buff))) > 0) {
+            if (fwrite(buff, sizeof(char), n, fp) != n)
+            {
+                perror("Write File Error");
+                exit(1);
+            }
+            memset(buff, 0, sizeof(buff));
         }
-        memset(buff, 0, sizeof(buff));
+        fclose(fp);
     }
-    fclose(fp);
+    close(socket_desc);
 }
 
 void *menu() {
@@ -440,6 +450,7 @@ void *menu() {
 
         printf("\n");
         if(list_size != 0) {
+            print_list_numbered(matched_peers);
             int n  = fscanf(stdin,"%d", &selected_number);
 
             while(selected_number < 1 || selected_number > list_size) {
@@ -448,7 +459,6 @@ void *menu() {
                 n  = fscanf(stdin,"%d", &selected_number);
             } 
             peer connected_peer = get_peer_el_from_list(matched_peers, selected_number);
-
             message[i] = '1';
             receive_file(connected_peer, message, file_name);
         }
