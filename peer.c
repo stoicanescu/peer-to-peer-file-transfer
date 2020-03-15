@@ -331,9 +331,9 @@ void *listen_for_peer_question(void *sockfd_arg) {
         received_message = (char *)malloc(n*sizeof(char));
         strcpy(received_message, buffer);
         received_message[n] = '\0';
-        what_to_do = received_message[n] - '0'; // '0'/'1'
+        what_to_do = received_message[n-1] - '0'; // '0'/'1'
         file_name = received_message;
-        file_name[n] = '\0';
+        file_name[n-2] = '\0';
         printf("what_to_do: %d\n", what_to_do);
         
         if(what_to_do == 0) { // peer only asks if peer has/has not a specific file
