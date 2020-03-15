@@ -334,7 +334,6 @@ void *listen_for_peer_question(void *sockfd_arg) {
         what_to_do = received_message[n-1] - '0'; // '0'/'1'
         file_name = received_message;
         file_name[n-2] = '\0';
-        printf("what_to_do: %d\n", what_to_do);
         
         if(what_to_do == 0) { // peer only asks if peer has/has not a specific file
             printf("Someone is looking for: %s\n", file_name);
@@ -409,9 +408,9 @@ void receive_file(peer server_peer, char *message, char *file_name) {
     char response[8];
     n = read(socket_desc, response, sizeof(response));
     if(strcmp(response, "Sending") == 0) {
-        char file_path[100] = "./files/";
-        strcat(file_path, file_name);
-        FILE *fp = fopen(strcat("./files/", file_name), "ab");
+        char file_path[100] = "./files/mama.txt";
+        // strcat(file_path, file_name);
+        FILE *fp = fopen(file_path, "ab");
         char buff[1024];
         while((n = read(socket_desc, buff, sizeof(buff))) > 0) {
             if (fwrite(buff, sizeof(char), n, fp) != n)
