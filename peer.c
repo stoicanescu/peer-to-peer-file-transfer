@@ -231,6 +231,7 @@ void print_list_numbered(peer *peer_head){
     peer *current_peer = peer_head;
     int number = 0;
     while(current_peer != NULL) {
+        printf("Choose peer to download from:\n");
         printf("\t%d\t%s\n", ++number, current_peer->peer_ip);
         current_peer = current_peer->next;
     }
@@ -382,6 +383,21 @@ void *listen_for_peer_question(void *sockfd_arg) {
     }
 }
 
+char* itoa(int val, int base){
+	
+	static char buf[32] = {0};
+	
+	int i = 30;
+	
+	for(; val && i ; --i, val /= base)
+	
+		buf[i] = "0123456789abcdef"[val % base];
+	
+	return &buf[i+1];
+	
+}
+	
+
 void receive_file(peer server_peer, char *message, char *file_name) {
     int socket_desc;
     struct sockaddr_in server;
@@ -393,28 +409,56 @@ void receive_file(peer server_peer, char *message, char *file_name) {
     server.sin_family = AF_INET;
     server.sin_port = htons(server_peer.peer_port);
 
-    //Connect to remote server
-    if (connect(socket_desc , (struct sockaddr *)&server , sizeof(server)) < 0)
-    {
+    // Connect to remote server
+    if (connect(socket_desc , (struct sockaddr *)&server , sizeof(server)) < 0) {
         puts("connect error");
         return;
     }
     
+    // Send file name and 1 - asks to download file
     int n;
     n = write(socket_desc,message,strlen(message));
     if (n < 0) 
         perror("ERROR writing to socket");
 
+    // Receiving file
     char response[8];
     n = read(socket_desc, response, sizeof(response));
-    if(strcmp(response, "Sending") == 0) {
+    if(strcmp(response, "Sending") == 0) { // if server-peer started to send the file
         char file_path[50] = "./files/";
-        strcat(file_path, file_name);
-        file_path[8 + sizeof(file_name)] = '\0';
-        FILE *fp = fopen(file_path, "w");
+        char file_name_without_extension[30];
+        char file_extension[6];
+        char new_file_name[50];
+        
+        // String processing
+        strcpy(new_file_name, file_name);
+        strcpy(file_extension, strrchr(new_file_name, '.'));
+        *strrchr(file_name, '.') = '\0';
+        strcpy(file_name_without_extension, file_name);
+
+        int counter = 0;
+        char *scounter;
+        while(peer_has_file(new_file_name)) { // if the file already exists
+                                              // it creates files like "file_name'n'.bla"
+            counter++;
+            if(counter > 9) {
+                printf("Sorry, too many files with the same name!");
+                exit(1);
+            }
+            scounter = itoa(counter, 10);
+            strcat(file_name_without_extension, scounter);
+            memset(new_file_name, 0, strlen(new_file_name));
+            strcat(new_file_name, file_name_without_extension);
+            strcat(new_file_name, file_extension);
+            file_name_without_extension[strlen(file_name_without_extension)-1] = '\0';
+        }
+
+        strcat(file_path, new_file_name);
+        file_path[8 + sizeof(new_file_name)] = '\0';
+        
+        FILE *fp = fopen(file_path, "ab");
         char buff[1024];
         while((n = read(socket_desc, buff, sizeof(buff))) > 0) {
-            printf("%s", buff);
             if (fwrite(buff, sizeof(char), n, fp) != n)
             {
                 perror("Write File Error");
@@ -461,6 +505,7 @@ void *menu() {
             } 
             peer connected_peer = get_peer_el_from_list(matched_peers, selected_number);
             message[i] = '1';
+            file_name[strlen(file_name)-1] = '\0';
             receive_file(connected_peer, message, file_name);
         }
         else {
