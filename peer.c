@@ -230,8 +230,8 @@ void print_list(peer *peer_head) {
 void print_list_numbered(peer *peer_head){
     peer *current_peer = peer_head;
     int number = 0;
+    printf("Choose peer to download from:\n");
     while(current_peer != NULL) {
-        printf("Choose peer to download from:\n");
         printf("\t%d\t%s\n", ++number, current_peer->peer_ip);
         current_peer = current_peer->next;
     }
@@ -489,7 +489,7 @@ void *menu() {
         strcpy(message, file_name);
         message[i] = '0';
         message[i+1] = '\0';
-              
+
         interrogate_peers(message, &matched_peers); // find all peers that has the file you are looking for
         
         int list_size = get_list_size(matched_peers);
@@ -513,6 +513,7 @@ void *menu() {
         else {
             printf("Sorry, there are no peers awailable!\n");
         }
+        matched_peers = NULL;
     }
 }
 
