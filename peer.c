@@ -363,8 +363,8 @@ void *listen_for_peer_question(void *sockfd_arg) {
                 }
 
                 int file_size; 
-                while(file_size = fread(buff, sizeof(char), sizeof(buff), fp) > 0) {
-                    if(send(newsockfd, buff, file_size, 0) < 0) {
+                while((file_size = fread(buff, sizeof(char), sizeof(buff), fp)) > 0) {
+                    if(write(newsockfd, buff, file_size) < 0) {
                         perror("Fail to send file");
                         break;
                     }
@@ -408,11 +408,13 @@ void receive_file(peer server_peer, char *message, char *file_name) {
     char response[8];
     n = read(socket_desc, response, sizeof(response));
     if(strcmp(response, "Sending") == 0) {
-        char file_path[100] = "./files/mama.txt";
-        // strcat(file_path, file_name);
-        FILE *fp = fopen(file_path, "ab");
+        char file_path[50] = "./files/";
+        strcat(file_path, file_name);
+        file_path[8 + sizeof(file_name)] = '\0';
+        FILE *fp = fopen(file_path, "w");
         char buff[1024];
         while((n = read(socket_desc, buff, sizeof(buff))) > 0) {
+            printf("%s", buff);
             if (fwrite(buff, sizeof(char), n, fp) != n)
             {
                 perror("Write File Error");
