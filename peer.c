@@ -334,7 +334,7 @@ void *listen_for_peer_question(void *sockfd_arg) {
         received_message[n] = '\0';
         what_to_do = received_message[n-1] - '0'; // '0'/'1'
         file_name = received_message;
-        file_name[n-2] = '\0';
+        file_name[n-1] = '\0';
         
         if(what_to_do == 0) { // peer only asks if peer has/has not a specific file
             printf("Someone is looking for: %s\n", file_name);
@@ -425,6 +425,7 @@ void receive_file(peer server_peer, char *message, char *file_name) {
     char response[8];
     n = read(socket_desc, response, sizeof(response));
     if(strcmp(response, "Sending") == 0) { // if server-peer started to send the file
+        printf("\tReceiving '%s'...", file_name);
         char file_path[50] = "./files/";
         char file_name_without_extension[30];
         char file_extension[6];
@@ -466,6 +467,7 @@ void receive_file(peer server_peer, char *message, char *file_name) {
             }
             memset(buff, 0, sizeof(buff));
         }
+        printf("Done\n\n");
         fclose(fp);
     }
     close(socket_desc);
@@ -479,15 +481,15 @@ void *menu() {
         peer *matched_peers;
         memset(file_name, 0, sizeof(file_name));
         printf("Hello! How can we help you? What file are you looking for?\n");
-        p = fgets(file_name, sizeof(file_name), stdin);
+        fscanf(stdin, "%s", file_name);
+
         int i = 0;
         while(*(file_name + i) != '\0')
             ++i;
         strcpy(message, file_name);
-        message[i-1] = '\n';
         message[i] = '0';
         message[i+1] = '\0';
-        
+              
         interrogate_peers(message, &matched_peers); // find all peers that has the file you are looking for
         
         int list_size = get_list_size(matched_peers);
@@ -505,7 +507,7 @@ void *menu() {
             } 
             peer connected_peer = get_peer_el_from_list(matched_peers, selected_number);
             message[i] = '1';
-            file_name[strlen(file_name)-1] = '\0';
+            // file_name[strlen(file_name)-1] = '\0';
             receive_file(connected_peer, message, file_name);
         }
         else {
