@@ -92,7 +92,7 @@ void *broadcast(void *arguments) { // Called by a thread every 2 seconds
         memset(&broadcastAddr, 0, sizeof broadcastAddr);
         broadcastAddr.sin_family = AF_INET;
         inet_pton(AF_INET, "255.255.255.255", &broadcastAddr.sin_addr); // Set the broadcast ip address
-        broadcastAddr.sin_port = htons(BROADCAST_PORT); // Set port 25555
+        broadcastAddr.sin_port = htons(BROADCAST_PORT); // Set port 55555
 
         // Prepare message
         char message[25]; // ex: 192.168.1.10\n34567\0
@@ -235,6 +235,7 @@ void print_list_numbered(peer *peer_head){
         printf("\t%d\t%s\n", ++number, current_peer->peer_ip);
         current_peer = current_peer->next;
     }
+    printf("\t%d\tAbort\n", ++number);
 } 
 
 int get_list_size(peer *peer_head){
@@ -258,6 +259,20 @@ peer get_peer_el_from_list(peer *peer_head, int el_nr){
     strcpy(chosen_peer.peer_ip, current_peer->peer_ip);
     chosen_peer.peer_port = current_peer->peer_port;
     return chosen_peer;
+}
+
+char* itoa(int val, int base){
+	
+	static char buf[32] = {0};
+	
+	int i = 30;
+	
+	for(; val && i ; --i, val /= base)
+	
+		buf[i] = "0123456789abcdef"[val % base];
+	
+	return &buf[i+1];
+	
 }
 
 void interrogate_peers(char *file_name, peer **matched_peers) {
@@ -310,8 +325,9 @@ void interrogate_peers(char *file_name, peer **matched_peers) {
 void *listen_for_peer_question(void *sockfd_arg) {
     struct socket_argument *sock_arg = sockfd_arg;
     int sockfd = sock_arg->sockfd_arg;
-    listen(sockfd,5);
+    
     while(1) {
+        listen(sockfd,5);
         int newsockfd, clilen;
         struct sockaddr_in cli_addr;
         int n;
@@ -381,22 +397,7 @@ void *listen_for_peer_question(void *sockfd_arg) {
         }
         close(newsockfd);
     }
-}
-
-char* itoa(int val, int base){
-	
-	static char buf[32] = {0};
-	
-	int i = 30;
-	
-	for(; val && i ; --i, val /= base)
-	
-		buf[i] = "0123456789abcdef"[val % base];
-	
-	return &buf[i+1];
-	
-}
-	
+}	
 
 void receive_file(peer server_peer, char *message, char *file_name) {
     int socket_desc;
@@ -493,25 +494,30 @@ void *menu() {
         interrogate_peers(message, &matched_peers); // find all peers that has the file you are looking for
         
         int list_size = get_list_size(matched_peers);
+        list_size += 1;
         int selected_number = 0;
 
         printf("\n");
-        if(list_size != 0) {
+        if(list_size != 1) {
             print_list_numbered(matched_peers);
             int n  = fscanf(stdin,"%d", &selected_number);
 
             while(selected_number < 1 || selected_number > list_size) {
                 printf("Where do you want to take it from? Type the coresponding number to begin downloading\n");
                 print_list_numbered(matched_peers);
-                n  = fscanf(stdin,"%d", &selected_number);
+                n = fscanf(stdin,"%d", &selected_number);
             } 
-            peer connected_peer = get_peer_el_from_list(matched_peers, selected_number);
-            message[i] = '1';
-            // file_name[strlen(file_name)-1] = '\0';
-            receive_file(connected_peer, message, file_name);
+            if(selected_number == list_size)
+                printf("Aborted\n\n");
+            else {
+                peer connected_peer = get_peer_el_from_list(matched_peers, selected_number);
+                message[i] = '1';
+                // file_name[strlen(file_name)-1] = '\0';
+                receive_file(connected_peer, message, file_name);
+            }
         }
         else {
-            printf("Sorry, there are no peers awailable!\n");
+            printf("Sorry, there are no peers available!\n");
         }
         matched_peers = NULL;
     }
